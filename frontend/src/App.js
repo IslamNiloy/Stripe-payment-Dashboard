@@ -1,70 +1,103 @@
-import './App.css';
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from './components/Sidebar';
 import AppReport from './components/AppReport';
+import Login from './components/Login';
 import CreateProductForm from './components/CreateProductForm';
 import ChargeCustomerForm from './components/ChargeCustomerForm';
 import CustomerInfo from './components/CustomerInfo';
 import PaymentForm from './components/PaymentForm';
 import PaymentSuccess from './components/PaymentSuccess';
 import PaymentCancelled from './components/PaymentCancelled';
+import CreateAppForm from './components/CreateAppForm.js'; // New component for creating an app
 
 function App() {
+  const [authToken, setAuthToken] = useState(localStorage.getItem('authToken') || '');
+  const [userRole, setUserRole] = useState('');
   const [selectedApp, setSelectedApp] = useState('');
-  const [apps, setApps] = useState([]); 
+  const [apps, setApps] = useState([]);
+  const [loading, setLoading] = useState(true);
 
- 
   useEffect(() => {
-    const fetchApps = async () => {
-      try {
-        const response = await axios.get('/api/products/apps'); 
-        setApps(response.data);  
-        setSelectedApp(response.data[0] || '');  
-      } catch (error) {
-        console.error('Error fetching apps:', error);
-      }
-    };
+    if (authToken) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
+      fetchUserData();
+      fetchAllApps(); // Fetch all available apps for the dashboard
+    } else {
+      setLoading(false);
+    }
+  }, [authToken]);
 
-    fetchApps();
-  }, []);
+  const fetchUserData = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get('/api/user');
+      setUserRole(response.data.role);
+      setSelectedApp(response.data.apps ? response.data.apps[0] : '');
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAllApps = async () => {
+    try {
+      const response = await axios.get('/api/apps');
+      setApps(response.data); // Set the list of all apps
+    } catch (error) {
+      console.error('Error fetching all apps:', error);
+    }
+  };
+
+  const handleLogin = (token, role) => {
+    localStorage.setItem('authToken', token);
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    setAuthToken(token);
+    setUserRole(role);
+  };
+
+  const handleLogout = () => {
+    setAuthToken('');
+    setUserRole('');
+    setSelectedApp('');
+    setApps([]);
+    localStorage.removeItem('authToken');
+    delete axios.defaults.headers.common['Authorization'];
+  };
 
   return (
     <Router>
-      <div style={{ display: 'flex' }}>
-        {/* Sidebar */}
-        <Sidebar />
-
-        {/* Main content area */}
-        <div style={{ marginLeft: '250px', padding: '20px', width: '100%' }}>
-          <h1>Admin Dashboard</h1>
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <div>
-                  <label>Select App: </label>
-                  <select value={selectedApp} onChange={(e) => setSelectedApp(e.target.value)}>
-                    {apps.map((app) => (
-                      <option key={app} value={app}>
-                        {app}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedApp && <AppReport appName={selectedApp} />}
-                </div>
-              }
-            />
-            <Route path="/create-product" element={<CreateProductForm />} />
-            <Route path="/charge-customer" element={<ChargeCustomerForm />} />
-            <Route path="/customer-info" element={<CustomerInfo appName={selectedApp} />} />
-            <Route path="/payment" element={<PaymentForm />} />
-            <Route path="/payment-success" element={<PaymentSuccess />} />
-            <Route path="/payment-cancelled" element={<PaymentCancelled />} />
-          </Routes>
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+          <h2>Loading...</h2>
         </div>
-      </div>
+      ) : authToken ? (
+        <div style={{ display: 'flex' }}>
+          <Sidebar userRole={userRole} onLogout={handleLogout} />
+          <div style={{ marginLeft: '250px', padding: '20px', width: '100%' }}>
+            <h1>Dashboard</h1>
+            <Routes>
+              <Route path="/" element={<AppReport apps={apps} selectedApp={selectedApp} />} />
+              <Route path="/create-product" element={<CreateProductForm />} />
+              <Route path="/charge-customer" element={<ChargeCustomerForm />} />
+              <Route path="/customer-info" element={<CustomerInfo appName={selectedApp} />} />
+              <Route path="/payment" element={<PaymentForm />} />
+              <Route path="/payment-success" element={<PaymentSuccess />} />
+              <Route path="/payment-cancelled" element={<PaymentCancelled />} />
+              <Route path="/create-app" element={<CreateAppForm />} /> {/* Route to create a new app */}
+              {userRole === 'admin' && (
+                <>
+                  {/* Add routes specific to admin actions here, e.g., API key management */}
+                </>
+              )}
+            </Routes>
+          </div>
+        </div>
+      ) : (
+        <Login setAuthToken={handleLogin} />
+      )}
     </Router>
   );
 }

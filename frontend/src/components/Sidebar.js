@@ -1,8 +1,9 @@
+// Sidebar.js
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { List, ListItem, ListItemText } from '@mui/material';
 
-const Sidebar = () => {
+const Sidebar = ({ userRole, onLogout }) => {
   return (
     <div style={{ width: '250px', height: '100vh', backgroundColor: '#f4f4f4', padding: '20px' }}>
       <h3>Menu</h3>
@@ -21,6 +22,12 @@ const Sidebar = () => {
         </ListItem>
         <ListItem button component={Link} to="/payment">
           <ListItemText primary="Payment Form" />
+        </ListItem>
+        <ListItem button component={Link} to="/create-app">
+          <ListItemText primary="Create App" />
+        </ListItem>
+        <ListItem button onClick={onLogout}>
+          <ListItemText primary="Logout" />
         </ListItem>
       </List>
     </div>

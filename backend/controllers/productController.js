@@ -1,15 +1,32 @@
 const Product = require('../models/productModel');
+const App = require('../models/appModel');
 
 // Add a new product
 exports.addProduct = async (req, res) => {
-    try {
-        const { name, price, appName } = req.body;
-        const product = new Product({ name, price, appName });
-        await product.save();
-        res.status(201).json({ message: 'Product added', product });
-    } catch (error) {
-        res.status(400).json({ error: error.message });
+  try {
+    const { name, price, appName } = req.body;
+
+    // Check if the app exists
+    const app = await App.findOne({ name: appName });
+    if (!app) {
+      return res.status(404).json({ message: `App with name "${appName}" does not exist` });
     }
+
+    // Check for duplicate product name within the same app
+    const existingProduct = await Product.findOne({ name, appName });
+    if (existingProduct) {
+      return res.status(400).json({ message: `Product with name "${name}" already exists in app "${appName}"` });
+    }
+
+    // Create and save the new product
+    const product = new Product({ name, price, appName });
+    await product.save();
+
+    res.status(201).json({ message: 'Product added successfully', product });
+  } catch (error) {
+    console.error('Error adding product:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 };
 
 
