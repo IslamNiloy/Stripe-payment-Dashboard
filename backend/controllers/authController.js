@@ -65,6 +65,7 @@ exports.createUser = async (req, res) => {
     const { email, password, role = 'user' } = req.body;
 
     try {
+        console.log(`Email in create User: ${email}`)
         // Check if the email already exists
         const existingUser = await User.findOne({ email });
         if (existingUser) {

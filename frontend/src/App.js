@@ -11,12 +11,14 @@ import PaymentForm from './components/PaymentForm';
 import PaymentSuccess from './components/PaymentSuccess';
 import PaymentCancelled from './components/PaymentCancelled';
 import CreateAppForm from './components/CreateAppForm.js'; // New component for creating an app
+import CreateUserForm from './components/CreateUserForm.js';
 
 function App() {
   const [authToken, setAuthToken] = useState(localStorage.getItem('authToken') || '');
   const [userRole, setUserRole] = useState('');
   const [selectedApp, setSelectedApp] = useState('');
   const [apps, setApps] = useState([]);
+  const [userEmail, setUserEmail] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,7 +35,10 @@ function App() {
     setLoading(true);
     try {
       const response = await axios.get('/api/user');
-      setUserRole(response.data.role);
+      setUserRole(response.data.user.role);
+      setUserEmail(response.data.user.email);
+      console.log(`User Role 1: ${response.data.user.role}`)
+      console.log(`User Role 2: ${userRole}`)
       setSelectedApp(response.data.apps ? response.data.apps[0] : '');
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -77,7 +82,8 @@ function App() {
         <div style={{ display: 'flex' }}>
           <Sidebar userRole={userRole} onLogout={handleLogout} />
           <div style={{ marginLeft: '250px', padding: '20px', width: '100%' }}>
-            <h1>Dashboard</h1>
+            <h1>Hello! {userEmail && userEmail}</h1>
+            {/* <h3>{userRole && userRole ` profile!`}</h3> */}
             <Routes>
               <Route path="/" element={<AppReport apps={apps} selectedApp={selectedApp} />} />
               <Route path="/create-product" element={<CreateProductForm />} />
@@ -87,9 +93,11 @@ function App() {
               <Route path="/payment-success" element={<PaymentSuccess />} />
               <Route path="/payment-cancelled" element={<PaymentCancelled />} />
               <Route path="/create-app" element={<CreateAppForm />} /> {/* Route to create a new app */}
+              <Route path="/create-user" element={<CreateUserForm />} />
               {userRole === 'admin' && (
                 <>
                   {/* Add routes specific to admin actions here, e.g., API key management */}
+                 
                 </>
               )}
             </Routes>

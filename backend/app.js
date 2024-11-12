@@ -7,7 +7,7 @@ const productRoutes = require('./routes/productRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const customerRoutes = require('./routes/customerRoutes');
-const authController = require('./routes/authRoutes')
+const authRoutes = require('./routes/authRoutes')
 const { runCronJob } = require('./cronJobs'); // Import the cron job
 const userRoutes = require('./routes/userRoutes')
 const appRoutes = require('./routes/appRoutes')
@@ -22,8 +22,8 @@ app.use(express.json());
 app.use('/api/products', productRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/reports', reportRoutes);
-app.use('/api/customers', customerRoutes);
-app.use('/api',authController);
+app.use('/api/customers', authRoutes);
+app.use('/api',authRoutes);
 app.use('/api', userRoutes);
 app.use('/api', appRoutes);
 

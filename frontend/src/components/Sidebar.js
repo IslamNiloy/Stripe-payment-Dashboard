@@ -11,6 +11,9 @@ const Sidebar = ({ userRole, onLogout }) => {
         <ListItem button component={Link} to="/">
           <ListItemText primary="Dashboard" />
         </ListItem>
+        <ListItem button component={Link} to="/create-user">
+          <ListItemText primary="Create User" />
+        </ListItem>
         <ListItem button component={Link} to="/create-product">
           <ListItemText primary="Create Product" />
         </ListItem>
