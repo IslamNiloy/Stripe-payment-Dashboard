@@ -14,8 +14,8 @@ const validateApiKey = require('../middlewares/apiKeyMiddleware'); // Adjust pat
 router.post('/charge', validateApiKey, processPayment);
 router.post('/track-usage', validateApiKey, trackUsage);
 router.post('/add-payg-customer', validateApiKey, addPayAsYouGoCustomer);
-router.post('/charge-payg', validateApiKey, chargePayAsYouGoCustomer);
-router.post('/create-checkout-session', validateApiKey, createCheckoutSession);
+router.post('/charge-payg', chargePayAsYouGoCustomer);
+router.post('/create-checkout-session', createCheckoutSession);
 
 // Webhook route - does not require API key validation
 router.post('/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);

@@ -203,116 +203,314 @@ exports.chargePayAsYouGoCustomer = async (req, res) => {
 
 // Stripe webhook handler
 exports.handleStripeWebhook = async (req, res) => {
-    const sig = req.headers['stripe-signature'];
-    let event;
-  
-    try {
-      // Verify and construct the event using the raw body
-      event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-      console.log('Webhook received and verified:', event.type);
-    } catch (err) {
-      console.error('Webhook signature verification failed:', err.message);
-      return res.status(400).send(`Webhook error: ${err.message}`);
-    }
-  
-    // Process the event (example: checkout.session.completed)
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object;
-      console.log('checkout.session.completed event received for session:', session);
-  
-      try {
-        // Check if the customer already exists in your StripePayment collection
-        let customer = await StripePayment.findOne({ stripeCustomerId: session.customer });
-  
-        if (!customer) {
-          console.log('Customer not found. Creating a new customer...');
-  
-          // If the customer does not exist, create a new one
-          customer = new StripePayment({
-            stripeCustomerId: session.customer,
-            appName: session.metadata.appName,
-            customerDetails: {
-              name: session.customer_details.name,
-              email: session.customer_details.email,
-              phone: session.customer_details.phone,
-              country: session.customer_details.address.country
+  const sig = req.headers['stripe-signature'];
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    console.log(`Webhook received and verified: ${event.type}`);
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err.message);
+    return res.status(400).send(`Webhook error: ${err.message}`);
+  }
+
+  // Handle different event types
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed':
+        const session = event.data.object;
+        console.log('checkout.session.completed event received for session:', session);
+
+        // Update the Payment model with the Stripe session details
+        await Payment.findOneAndUpdate(
+          { customer: session.metadata.customerId },
+          {
+            paymentStatus: 'completed',
+            subscriptionId: session.subscription || null, // Set the subscription ID if available
+            stripePaymentDetails: [
+              {
+                amount: session.amount_total / 100, // Convert cents to dollars
+                status: session.payment_status,
+                stripeCustomerId: session.customer,
+                createdAt: new Date(session.created * 1000),
+              },
+            ],
+          }
+        );
+
+        break;
+
+      case 'invoice.payment_succeeded':
+        const invoice = event.data.object;
+        console.log('invoice.payment_succeeded event received for invoice:', invoice);
+
+        // Update Payment model when an invoice is paid
+        await Payment.findOneAndUpdate(
+          { subscriptionId: invoice.subscription },
+          {
+            paymentStatus: 'completed',
+            stripePaymentDetails: {
+              $push: {
+                amount: invoice.amount_paid / 100, // Convert cents to dollars
+                status: 'succeeded',
+                createdAt: new Date(invoice.created * 1000),
+              },
             },
-            productId: session.metadata.productId,
-            payments: [], 
-            usage: { apiCalls: 0, lastChargedDate: new Date() }
-          });
-        }
-  
-        // Add the payment information to the payments array
-        const paymentInfo = {
-          productId: customer.productId,
-          amount: session.amount_total,
-          status: session.payment_status,
-          createdAt: new Date(session.created * 1000),
-          customerDetails: customer.customerDetails
-        };
-  
-        customer.payments.push(paymentInfo);
-        customer.usage.lastChargedDate = new Date();  
-  
-        // Save the updated or new customer record
-        await customer.save();
-  
-        // Unlock API calls for this customer
-        // console.log('Unlocking API calls for customer:', customer.stripeCustomerId);
-        // Add your logic to unlock API calls here
-  
-        // console.log('Payment information saved to database:', paymentInfo);
-      } catch (err) {
-        console.error('Error saving payment to database:', err.message);
-        return res.status(500).send('Error saving payment to database.');
-      }
+          }
+        );
+
+        break;
+
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+        const subscription = event.data.object;
+        console.log(`${event.type} event received for subscription:`, subscription);
+
+        // Update Customer and Payment models with subscription details
+        await Customer.findOneAndUpdate(
+          { stripeCustomerId: subscription.customer },
+          { isSubscribed: true }
+        );
+
+        await Payment.findOneAndUpdate(
+          { customer: subscription.metadata.customerId },
+          { subscriptionId: subscription.id }
+        );
+
+        break;
+
+      default:
+        console.log(`Unhandled event type: ${event.type}`);
     }
-  
-    res.status(200).send('Webhook received successfully.');
-  };
-  
+  } catch (error) {
+    console.error('Error handling webhook event:', error.message);
+    return res.status(500).send('Error handling webhook event.');
+  }
+
+  res.status(200).send('Webhook handled successfully.');
+};
 
 
-// In your createCheckoutSession method
+
+const Customer = require('../models/customerModel');
+const Payment = require('../models/paymentModel');
+const App = require('../models/appModel');
+
 exports.createCheckoutSession = async (req, res) => {
-    const { appName, planId, planPrice, planName, customerName, customerEmail } = req.body;
-  
-    try {
-      const customer = await stripe.customers.create({
+  const { appName, planId, planPrice, planName, customerName, customerEmail, portalId, isSubscribed } = req.body;
+
+  try {
+    // Check if the app and product exist
+    const app = await App.findOne({ name: appName });
+    if (!app) {
+      return res.status(404).json({ message: `App "${appName}" not found` });
+    }
+
+    const product = await Product.findById(planId);
+    if (!product) {
+      return res.status(404).json({ message: `Plan "${planName}" not found` });
+    }
+
+    // Retrieve or create a customer in the database using portalId
+    let customer = await Customer.findOne({ portalId });
+    if (!customer) {
+      customer = new Customer({
+        name: customerName,
         email: customerEmail,
-        name: customerName, // Adjust this as necessary
+        portalId,
+        apps: [
+          {
+            app: app._id,
+            product: product._id,
+            productType: product.productType,
+            packagePrice: planPrice,
+            installationDate: new Date(),
+          },
+        ],
+        stripeCustomerId: null,
+        paymentStatus: 'pending',
+        isSubscribed: isSubscribed || false,
       });
-  
-      // Create a Stripe checkout session
+      await customer.save();
+    } else {
+      const existingApp = customer.apps.find(
+        (appEntry) =>
+          appEntry.app.toString() === app._id.toString() && appEntry.product.toString() === product._id.toString()
+      );
+
+      if (existingApp) {
+        existingApp.packagePrice = planPrice;
+        existingApp.productType = product.productType;
+      } else {
+        customer.apps.push({
+          app: app._id,
+          product: product._id,
+          productType: product.productType,
+          packagePrice: planPrice,
+          installationDate: new Date(),
+        });
+      }
+
+      customer.paymentStatus = 'pending';
+      customer.isSubscribed = isSubscribed || false;
+      await customer.save();
+    }
+
+    // Create or retrieve a Stripe customer
+    let stripeCustomer;
+    if (customer.stripeCustomerId) {
+      stripeCustomer = await stripe.customers.retrieve(customer.stripeCustomerId);
+    } else {
+      stripeCustomer = await stripe.customers.create({
+        email: customerEmail,
+        name: customerName,
+      });
+      customer.stripeCustomerId = stripeCustomer.id;
+      await customer.save();
+    }
+
+    let sessionUrl;
+    let subscriptionId = null; // Initialize the subscription ID
+    let paymentMethodId = null; // Initialize the payment method ID for Pay-As-You-Go
+
+    if (product.productType === 'pay-as-you-go') {
+      // Create a Stripe Checkout session in "setup" mode to save card info
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
+        customer: stripeCustomer.id,
+        mode: 'setup',
+        success_url: `${process.env.FRONTEND_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.FRONTEND_URL}/payment-cancelled`,
+        metadata: {
+          appName: app._id.toString(),
+          productId: product._id.toString(),
+          customerId: customer._id.toString(),
+        },
+      });
+
+      sessionUrl = session.url;
+    } else if (isSubscribed) {
+      // Create a Stripe Price object for a subscription-based plan
+      const interval = product.productType === 'monthly' ? 'month' : 'year';
+
+      const price = await stripe.prices.create({
+        unit_amount: planPrice * 100, // Convert to cents
+        currency: 'usd',
+        recurring: { interval },
+        product_data: { name: `${planName} for ${appName}` },
+      });
+
+      // Create a subscription session
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        customer: stripeCustomer.id,
+        mode: 'subscription',
+        line_items: [
+          {
+            price: price.id,
+            quantity: 1,
+          },
+        ],
+        success_url: `${process.env.FRONTEND_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.FRONTEND_URL}/payment-cancelled`,
+        metadata: {
+          appName: app._id.toString(),
+          productId: product._id.toString(),
+          customerId: customer._id.toString(),
+        },
+      });
+
+      sessionUrl = session.url;
+      subscriptionId = session.subscription; // Save the subscription ID
+    } else {
+      // Create a one-time payment session
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        customer: stripeCustomer.id,
+        mode: 'payment',
         line_items: [
           {
             price_data: {
               currency: 'usd',
-              product_data: {
-                name: `${planName} for ${appName}`,
-              },
+              product_data: { name: `${planName} for ${appName}` },
               unit_amount: planPrice * 100, // Convert to cents
             },
             quantity: 1,
           },
         ],
-        mode: 'payment',
-        customer: customer.id, // Attach the created customer to the session
         success_url: `${process.env.FRONTEND_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.FRONTEND_URL}/payment-cancelled`,
         metadata: {
-          appName: appName,
-          productId: planId
-        }
+          appName: app._id.toString(),
+          productId: product._id.toString(),
+          customerId: customer._id.toString(),
+        },
       });
-  
-      res.status(200).json({ url: session.url });
-    } catch (error) {
-      console.error('Error creating checkout session:', error.message);
-      res.status(500).json({ error: 'Unable to create Stripe session' });
+
+      sessionUrl = session.url;
     }
-  };
-  
+
+    // **Update the Payment Model**
+    const payment = new Payment({
+      customer: customer._id,
+      app: app._id,
+      product: product._id,
+      totalPaymentAmount: planPrice,
+      lastPaymentAmount: planPrice,
+      paymentStatus: 'pending',
+      isSubscription: isSubscribed,
+      subscriptionId: subscriptionId,
+      paymentMethodId: product.productType === 'pay-as-you-go' ? null : paymentMethodId,
+      packageStartDate: new Date(),
+      packageEndDate: product.productType === 'monthly'
+        ? new Date(new Date().setMonth(new Date().getMonth() + 1))
+        : product.productType === 'yearly'
+        ? new Date(new Date().setFullYear(new Date().getFullYear() + 1))
+        : null,
+      stripePaymentDetails: [
+        {
+          amount: planPrice,
+          status: 'pending',
+          stripeCustomerId: stripeCustomer.id,
+          createdAt: new Date(),
+        },
+      ],
+    });
+
+    await payment.save();
+
+    res.status(200).json({ url: sessionUrl });
+  } catch (error) {
+    console.error('Error creating checkout session:', error.message);
+    res.status(500).json({ error: 'Unable to create Stripe session' });
+
+  }
+};
+
+
+
+exports.recordUsage = async (customerId, apiCalls) => {
+  try {
+    const customer = await Customer.findById(customerId);
+    if (!customer) return;
+
+    // Find the subscription item ID for metered billing
+    const subscriptionItemId = customer.apps.reduce((id, appEntry) => {
+      return appEntry.subscriptionItemId || id;
+    }, null);
+
+    if (!subscriptionItemId) {
+      console.error('Subscription item ID not found for customer');
+      return;
+    }
+
+    // Create a usage record in Stripe
+    await stripe.subscriptionItems.createUsageRecord(subscriptionItemId, {
+      quantity: apiCalls,
+      timestamp: Math.floor(Date.now() / 1000),
+      action: 'increment',
+    });
+  } catch (error) {
+    console.error('Error recording usage:', error.message);
+  }
+};

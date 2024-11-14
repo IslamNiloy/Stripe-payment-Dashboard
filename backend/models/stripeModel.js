@@ -9,7 +9,7 @@ const stripeSchema = new mongoose.Schema({
         phone: { type: String },
         country: { type: String }
     },
-    usage: {
+    usage: { //for pay as you go
         apiCalls: { type: Number, default: 0 },
         lastChargedDate: { type: Date, default: Date.now }
     },

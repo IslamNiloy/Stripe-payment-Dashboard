@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Container, TextField, Button, Typography, MenuItem, Select, FormControl, InputLabel } from '@mui/material';
+import { Container, TextField, Button, Typography, MenuItem, Select, FormControl, InputLabel, Checkbox, FormControlLabel } from '@mui/material';
 
 const PaymentForm = () => {
   const [appName, setAppName] = useState('');
@@ -9,42 +9,14 @@ const PaymentForm = () => {
   const [apps, setApps] = useState([]);
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
-  const [apiKey, setApiKey] = useState(''); // API key stored in state
+  const [portalId, setPortalId] = useState('');
+  const [isSubscribed, setIsSubscribed] = useState(false);
 
-  // Retrieve the auth token from local storage
-  const authToken = localStorage.getItem('authToken'); // Make sure this is set during login
-
-  // Fetch the API key on component mount
-  useEffect(() => {
-    const fetchApiKey = async () => {
-      if (!authToken) {
-        console.error("Authorization token is missing. Unable to fetch API key.");
-        return;
-      }
-      
-      try {
-        const response = await axios.get('/api/api-keys', {
-          headers: {
-            'Authorization': `Bearer ${authToken}` // Use the auth token to get the API key
-          }
-        });
-        setApiKey(response.data.apiKey);
-        console.log("Fetched API Key:", response.data.apiKey); // Debugging log
-      } catch (error) {
-        console.error('Error fetching API key:', error);
-      }
-    };
-
-    fetchApiKey();
-  }, [authToken]);
-
-  // Fetch available apps for selection
   useEffect(() => {
     const fetchApps = async () => {
       try {
         const response = await axios.get('/api/apps');
         setApps(response.data);
-
         if (response.data.length > 0) {
           setAppName(response.data[0].name);
         }
@@ -52,11 +24,9 @@ const PaymentForm = () => {
         console.error('Error fetching apps:', error);
       }
     };
-
     fetchApps();
   }, []);
 
-  // Fetch plans (products) based on the selected app name
   useEffect(() => {
     if (appName) {
       const fetchPlans = async () => {
@@ -67,7 +37,6 @@ const PaymentForm = () => {
           console.error('Error fetching plans:', error);
         }
       };
-
       fetchPlans();
     } else {
       setPlans([]);
@@ -76,16 +45,9 @@ const PaymentForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!apiKey) {
-      console.error("API key is missing. Unable to proceed.");
-      alert("API key is missing. Please try again later.");
-      return;
-    }
-
     const selectedPlan = plans.find((p) => p._id === plan);
     if (!selectedPlan) {
-      console.error("Please select a valid plan.");
+      console.error('Please select a valid plan.');
       return;
     }
 
@@ -96,11 +58,9 @@ const PaymentForm = () => {
         planPrice: selectedPlan.price,
         planName: selectedPlan.name,
         customerName,
-        customerEmail
-      }, {
-        headers: {
-          'x-api-key': `${apiKey}`
-        }
+        customerEmail,
+        portalId,
+        isSubscribed,
       });
 
       window.location.href = response.data.url;
@@ -137,28 +97,36 @@ const PaymentForm = () => {
           </Select>
         </FormControl>
 
-        <FormControl fullWidth margin="normal" variant="outlined">
-          <TextField
-            label="Customer Name"
-            value={customerName}
-            onChange={(e) => setCustomerName(e.target.value)}
-            fullWidth
-            required
-            variant="outlined"
-          />
-        </FormControl>
+        <TextField
+          label="Customer Name"
+          value={customerName}
+          onChange={(e) => setCustomerName(e.target.value)}
+          fullWidth
+          required
+          variant="outlined"
+          margin="normal"
+        />
 
-        <FormControl fullWidth margin="normal" variant="outlined">
-          <TextField
-            label="Customer Email"
-            type="email"
-            value={customerEmail}
-            onChange={(e) => setCustomerEmail(e.target.value)}
-            fullWidth
-            required
-            variant="outlined"
-          />
-        </FormControl>
+        <TextField
+          label="Customer Email"
+          type="email"
+          value={customerEmail}
+          onChange={(e) => setCustomerEmail(e.target.value)}
+          fullWidth
+          required
+          variant="outlined"
+          margin="normal"
+        />
+
+        <TextField
+          label="Portal ID"
+          value={portalId}
+          onChange={(e) => setPortalId(e.target.value)}
+          fullWidth
+          required
+          variant="outlined"
+          margin="normal"
+        />
 
         <FormControl fullWidth margin="normal" variant="outlined">
           <InputLabel id="plan-select-label">Select a Plan</InputLabel>
@@ -176,11 +144,26 @@ const PaymentForm = () => {
             </MenuItem>
             {plans.map((plan) => (
               <MenuItem key={plan._id} value={plan._id}>
-                {plan.name} - ${plan.price / 100}
+                {plan.name} - ${plan.price / 100}{' '}
+                {plan.productType === 'monthly' || plan.productType === 'yearly' ? '(Subscription)' : ''}
               </MenuItem>
             ))}
           </Select>
         </FormControl>
+
+        {/* Only show the subscription checkbox if it's not a Pay-As-You-Go plan */}
+        {plan && plans.find((p) => p._id === plan).productType !== 'pay-as-you-go' && (
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={isSubscribed}
+                onChange={(e) => setIsSubscribed(e.target.checked)}
+                color="primary"
+              />
+            }
+            label="Subscribe for automatic renewal"
+          />
+        )}
 
         <Button type="submit" variant="contained" color="primary" fullWidth>
           Proceed to Payment
