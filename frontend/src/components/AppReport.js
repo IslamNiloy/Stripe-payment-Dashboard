@@ -1,26 +1,70 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Container, Typography, Card, CardContent, Grid, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import { styled } from '@mui/material/styles';
+
+// Custom styled components
+const StyledContainer = styled(Container)({
+  padding: '20px',
+  backgroundColor: '#f0f8ff',
+  borderRadius: '8px',
+});
+
+const Header = styled(Typography)({
+  color: '#1e88e5',
+  fontWeight: 'bold',
+});
+
+const StyledCard = styled(Card)({
+  backgroundColor: '#ffffff',
+  boxShadow: '0px 6px 15px rgba(0, 0, 0, 0.1)',
+  borderRadius: '12px',
+  transition: 'transform 0.3s',
+  '&:hover': {
+    transform: 'scale(1.05)',
+  },
+});
+
+const CardTitle = styled(Typography)({
+  color: '#1e88e5',
+  fontWeight: 'bold',
+});
+
+const ProductCard = styled(Card)({
+  backgroundColor: '#e3f2fd',
+  boxShadow: '0px 6px 15px rgba(0, 0, 0, 0.1)',
+  borderRadius: '12px',
+  transition: 'transform 0.3s',
+  '&:hover': {
+    transform: 'scale(1.05)',
+  },
+});
+
+const PaymentCard = styled(Card)({
+  backgroundColor: '#ffecb3',
+  boxShadow: '0px 6px 15px rgba(0, 0, 0, 0.1)',
+  borderRadius: '12px',
+});
 
 const AppReport = () => {
-  const [apps, setApps] = useState([]); // List of all apps
-  const [selectedApp, setSelectedApp] = useState(''); // Selected app name
+  const [apps, setApps] = useState([]);
+  const [selectedApp, setSelectedApp] = useState('');
   const [reportData, setReportData] = useState(null);
   const [products, setProducts] = useState([]);
+  const [paymentHistory, setPaymentHistory] = useState([]); // Added state for payment history
   const [loading, setLoading] = useState(true);
-  const [noReportData, setNoReportData] = useState(false); // Handle no report data case
-  const [noProducts, setNoProducts] = useState(false); // Handle no products case
+  const [noReportData, setNoReportData] = useState(false);
+  const [noProducts, setNoProducts] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    // Fetch all apps and set the default selected app
     const fetchApps = async () => {
       try {
         const response = await axios.get('/api/apps');
         setApps(response.data);
-        console.log("Fetched apps:", response.data);
-
         if (response.data.length > 0) {
-          setSelectedApp(response.data[0].name); // Automatically select the first app
+          setSelectedApp(response.data[0].name);
         }
       } catch (error) {
         console.error('Error fetching apps:', error);
@@ -33,47 +77,51 @@ const AppReport = () => {
 
   useEffect(() => {
     if (selectedApp) {
-      setLoading(true); // Set loading true when fetching data
-      setReportData(null); // Clear previous report data
-      setProducts([]); // Clear previous products
-      setNoReportData(false); // Reset noReportData state
-      setNoProducts(false); // Reset noProducts state
+      setLoading(true);
+      setReportData(null);
+      setProducts([]);
+      setPaymentHistory([]); // Clear payment history
+      setNoReportData(false);
+      setNoProducts(false);
 
-      // Fetch report data for the selected app
+      // Fetch report data
       axios.get(`/api/reports/app/${selectedApp}/report`)
-        .then(response => {
+        .then((response) => {
           if (!response.data || Object.keys(response.data).length === 0) {
-            setNoReportData(true); // No report data found
+            setNoReportData(true);
           } else {
             setReportData(response.data);
+            setPaymentHistory(response.data.paymentHistory || []); // Set payment history
           }
-          console.log("Fetched report data:", response.data);
         })
-        .catch(error => {
-          console.error("Error fetching report data:", error);
-          setNoReportData(true); // Handle error as no data
+        .catch((error) => {
+          console.error('Error fetching report data:', error);
+          setNoReportData(true);
         });
 
-      // Fetch products for the selected app
+      // Fetch products data
       axios.get(`/api/products/app/${selectedApp}/products`)
-        .then(response => {
+        .then((response) => {
           if (!response.data || response.data.length === 0) {
-            setNoProducts(true); // No products found
+            setNoProducts(true);
           } else {
             setProducts(response.data);
           }
-          console.log("Fetched products:", response.data);
         })
-        .catch(error => {
-          console.error("Error fetching products:", error);
-          setNoProducts(true); // Handle error as no products
+        .catch((error) => {
+          console.error('Error fetching products:', error);
+          setNoProducts(true);
         })
-        .finally(() => setLoading(false)); // Stop loading after fetch
+        .finally(() => setLoading(false));
     }
   }, [selectedApp]);
 
   const handleAppChange = (event) => {
-    setSelectedApp(event.target.value); // Update selected app
+    setSelectedApp(event.target.value);
+  };
+
+  const handleCustomerClick = () => {
+    navigate('/customer-info');
   };
 
   if (loading) return <div>Loading...</div>;
@@ -83,12 +131,11 @@ const AppReport = () => {
   }
 
   return (
-    <Container>
-      <Typography variant="h4" gutterBottom>
+    <StyledContainer>
+      <Header variant="h4" gutterBottom>
         App Reports
-      </Typography>
+      </Header>
 
-      {/* Dropdown to select an app */}
       <FormControl fullWidth margin="normal">
         <InputLabel id="app-select-label">Select App</InputLabel>
         <Select
@@ -107,82 +154,85 @@ const AppReport = () => {
       </FormControl>
 
       {noReportData ? (
-        <Typography variant="body1" style={{ marginTop: '20px' }}>
+        <Typography variant="body1" style={{ marginTop: '20px', color: '#d32f2f' }}>
           No report data available for {selectedApp}.
         </Typography>
       ) : (
         reportData && (
-          <>
-            <Typography variant="h4" gutterBottom>
-              Report for {reportData.appName}
-            </Typography>
-            <Grid container spacing={3}>
-              <Grid item xs={12} sm={4}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6">Total Customers</Typography>
-                    <Typography variant="body2">{reportData.customerCount}</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6">Total Usage</Typography>
-                    <Typography variant="body2">{reportData.totalUsage} API calls</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6">Total Payments</Typography>
-                    <Typography variant="body2">${reportData.totalPayments}</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
+          <Grid container spacing={3} style={{ marginTop: '20px' }}>
+            <Grid item xs={12} sm={4}>
+              <StyledCard onClick={handleCustomerClick} style={{ cursor: 'pointer' }}>
+                <CardContent>
+                  <CardTitle variant="h6">Total Customers</CardTitle>
+                  <Typography variant="body2">{reportData.customerCount}</Typography>
+                </CardContent>
+              </StyledCard>
             </Grid>
-
-            <Typography variant="h6" gutterBottom style={{ marginTop: '20px' }}>
-              Payment History
-            </Typography>
-            <Grid container spacing={2}>
-              {reportData.paymentHistory.map((payment, index) => (
-                <Grid item xs={12} sm={6} key={index}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="body2">
-                        {payment.customerName} - ${payment.amount} on {new Date(payment.date).toLocaleDateString()} - Status: {payment.status}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
+            <Grid item xs={12} sm={4}>
+              <StyledCard>
+                <CardContent>
+                  <CardTitle variant="h6">Total Usage</CardTitle>
+                  <Typography variant="body2">{reportData.totalUsage} API calls</Typography>
+                </CardContent>
+              </StyledCard>
             </Grid>
-          </>
+            <Grid item xs={12} sm={4}>
+              <StyledCard>
+                <CardContent>
+                  <CardTitle variant="h6">Total Payments</CardTitle>
+                  <Typography variant="body2">${reportData.totalPayments}</Typography>
+                </CardContent>
+              </StyledCard>
+            </Grid>
+          </Grid>
         )
       )}
 
-      <Typography variant="h6" gutterBottom style={{ marginTop: '20px' }}>
+      {/* Always show the products section */}
+      <Typography variant="h6" style={{ marginTop: '20px', color: '#1e88e5' }}>
         Products for {selectedApp}
       </Typography>
       {noProducts ? (
-        <Typography variant="body1">No products available for {selectedApp}.</Typography>
+        <Typography variant="body1" style={{ color: '#d32f2f' }}>No products available for {selectedApp}.</Typography>
       ) : (
-        <Grid container spacing={2}>
+        <Grid container spacing={2} style={{ marginTop: '20px' }}>
           {products.map((product, index) => (
             <Grid item xs={12} sm={6} key={index}>
-              <Card>
+              <ProductCard>
                 <CardContent>
                   <Typography variant="h6">{product.name}</Typography>
                   <Typography variant="body2">Price: ${product.price}</Typography>
+                  <Typography variant="body2">Limit: {product.limit} API calls</Typography>
+                  <Typography variant="body2">Type: {product.productType}</Typography>
                 </CardContent>
-              </Card>
+              </ProductCard>
             </Grid>
           ))}
         </Grid>
       )}
-    </Container>
+
+      {/* Payment History Section */}
+      <Typography variant="h6" style={{ marginTop: '40px', color: '#1e88e5' }}>
+        Payment History
+      </Typography>
+      {paymentHistory.length === 0 ? (
+        <Typography variant="body1" style={{ color: '#d32f2f' }}>No payment history available.</Typography>
+      ) : (
+        <Grid container spacing={2} style={{ marginTop: '20px' }}>
+          {paymentHistory.map((payment, index) => (
+            <Grid item xs={12} sm={6} key={index}>
+              <PaymentCard>
+                <CardContent>
+                  <Typography variant="body2">
+                    {payment.customerName} - ${payment.amount} on {new Date(payment.date).toLocaleDateString()} - Status: {payment.status}
+                  </Typography>
+                </CardContent>
+              </PaymentCard>
+            </Grid>
+          ))}
+        </Grid>
+      )}
+    </StyledContainer>
   );
 };
 

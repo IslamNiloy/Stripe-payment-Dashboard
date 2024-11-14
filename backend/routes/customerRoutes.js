@@ -1,10 +1,10 @@
 // routes/customerRoutes.js
 const express = require('express');
-const { getCustomersByApp } = require('../controllers/customerController');
+const  customerController  = require('../controllers/customerController');
 
 const router = express.Router();
 
 // Route to get customers by app name
-router.get('/app/:appName/customers', getCustomersByApp);
+router.get('/app/:appId/customers', customerController.getCustomersByApp);
 
 module.exports = router;

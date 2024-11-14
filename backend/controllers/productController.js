@@ -18,24 +18,13 @@ exports.addProduct = async (req, res) => {
       return res.status(400).json({ message: `Product with name "${name}" already exists in app "${appName}"` });
     }
 
-    // Calculate expireDate based on productType
-    let expireDate = null;
-    if (productType === 'monthly') {
-      expireDate = new Date();
-      expireDate.setDate(expireDate.getDate() + 30); // Set expire date to 30 days from today
-    } else if (productType === 'yearly') {
-      expireDate = new Date();
-      expireDate.setFullYear(expireDate.getFullYear() + 1); // Set expire date to 365 days from today
-    }
-
     // Create and save the new product with reference to the app
     const product = new Product({
       name,
       price,
       limit: productType === 'pay-as-you-go' ? null : limit, // No limit for pay-as-you-go
-      expireDate,
       productType,
-      app: app._id
+      app: app._id,
     });
     await product.save();
 

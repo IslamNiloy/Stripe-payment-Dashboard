@@ -6,7 +6,6 @@ const CreateProductForm = () => {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [limit, setLimit] = useState('');
-  const [expireDate, setExpireDate] = useState('');
   const [productType, setProductType] = useState('');
   const [appName, setAppName] = useState('');
   const [apps, setApps] = useState([]); // List of apps
@@ -25,18 +24,9 @@ const CreateProductForm = () => {
     fetchApps();
   }, []);
 
-  // Update expireDate and limit based on productType
+  // Update limit based on productType
   useEffect(() => {
-    if (productType === 'monthly') {
-      const date = new Date();
-      date.setDate(date.getDate() + 30);
-      setExpireDate(date.toISOString().split('T')[0]);
-    } else if (productType === 'yearly') {
-      const date = new Date();
-      date.setFullYear(date.getFullYear() + 1);
-      setExpireDate(date.toISOString().split('T')[0]);
-    } else if (productType === 'pay-as-you-go') {
-      setExpireDate('');
+    if (productType === 'pay-as-you-go') {
       setLimit(''); // Clear the limit for pay-as-you-go
     }
   }, [productType]);
@@ -48,15 +38,13 @@ const CreateProductForm = () => {
         name,
         price,
         limit: productType === 'pay-as-you-go' ? null : limit,
-        expireDate,
         productType,
-        appName
+        appName,
       });
       alert('Product created successfully!');
       setName('');
       setPrice('');
       setLimit('');
-      setExpireDate('');
       setProductType('');
       setAppName('');
     } catch (error) {
@@ -96,16 +84,6 @@ const CreateProductForm = () => {
           fullWidth
           margin="normal"
           disabled={productType === 'pay-as-you-go'} // Disable limit input for pay-as-you-go
-        />
-        <TextField
-          label="Expire Date"
-          type="date"
-          value={expireDate}
-          onChange={(e) => setExpireDate(e.target.value)}
-          fullWidth
-          margin="normal"
-          InputLabelProps={{ shrink: true }}
-          disabled // Expire date is auto-set based on product type
         />
         <FormControl fullWidth margin="normal" required>
           <InputLabel id="product-type-label">Product Type</InputLabel>
