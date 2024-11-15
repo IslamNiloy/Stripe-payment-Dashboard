@@ -35,8 +35,6 @@ exports.addProduct = async (req, res) => {
   }
 };
 
-
-
 exports.getProductsByApp = async (req, res) => {
   const { appName } = req.params;
 
@@ -70,6 +68,65 @@ exports.getAppNames = async (req, res) => {
   } catch (error) {
     console.error('Error fetching app names:', error);
     res.status(500).json({ error: 'Failed to fetch app names' });
+  }
+};
+
+
+exports.deleteProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    // Find and delete the product by its ID
+    const product = await Product.findByIdAndDelete({_id: productId});
+    console.log()
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    res.status(200).json({ message: 'Product deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting product:', error);
+    res.status(500).json({ error: error });
+  }
+};
+
+
+exports.updateProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { name, price, limit, productType, appName } = req.body;
+
+    // Find the app by name if appName is provided
+    let app;
+    if (appName) {
+      app = await App.findOne({ name: appName });
+      if (!app) {
+        return res.status(404).json({ message: `App with name "${appName}" not found` });
+      }
+    }
+
+    // Find the product by its ID
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    // Update product details
+    product.name = name || product.name;
+    product.price = price || product.price;
+    product.limit = productType === 'pay-as-you-go' ? null : (limit || product.limit);
+    product.productType = productType || product.productType;
+    if (app) {
+      product.app = app._id;
+    }
+
+    // Save the updated product
+    await product.save();
+
+    res.status(200).json({ message: 'Product updated successfully', product });
+  } catch (error) {
+    console.error('Error updating product:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 

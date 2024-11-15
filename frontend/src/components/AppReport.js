@@ -200,6 +200,7 @@ const AppReport = () => {
             <Grid item xs={12} sm={6} key={index}>
               <ProductCard>
                 <CardContent>
+                <Typography variant="h6">{product._id}</Typography>
                   <Typography variant="h6">{product.name}</Typography>
                   <Typography variant="body2">Price: ${product.price}</Typography>
                   <Typography variant="body2">Limit: {product.limit} API calls</Typography>
