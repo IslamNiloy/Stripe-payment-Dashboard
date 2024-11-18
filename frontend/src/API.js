@@ -1,0 +1,1 @@
+export const BACKEND_DEV_API= 'http://localhost:5000'

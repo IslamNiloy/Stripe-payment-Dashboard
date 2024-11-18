@@ -3,6 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Container, Typography, Card, CardContent, Grid, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import CloseIcon from '../utills/CloseIcon';
+import './css/AppReport.css';
+import { useDispatch, useSelector } from 'react-redux';
+import { deleteProduct } from '../actions/ProductActions';
+import EditIcon from '../utills/EditIcon';
+import { TextField, Button } from '@mui/material';
 
 // Custom styled components
 const StyledContainer = styled(Container)({
@@ -48,6 +54,16 @@ const PaymentCard = styled(Card)({
 });
 
 const AppReport = () => {
+  const dispatch = useDispatch();
+
+  const handleDelete = (productId) => {
+    if (window.confirm('Are you sure you want to delete this product? ')) {
+      dispatch(deleteProduct(productId)).then(() => {
+        // Trigger the useEffect to refresh products
+        setRefreshProducts(!refreshProducts);
+      });
+    }
+  };
   const [apps, setApps] = useState([]);
   const [selectedApp, setSelectedApp] = useState('');
   const [reportData, setReportData] = useState(null);
@@ -56,6 +72,42 @@ const AppReport = () => {
   const [loading, setLoading] = useState(true);
   const [noReportData, setNoReportData] = useState(false);
   const [noProducts, setNoProducts] = useState(false);
+  const [refreshProducts, setRefreshProducts] = useState(false);
+  //Edit product function starts
+  const [editingProductId, setEditingProductId] = useState(null);
+  const [editedProduct, setEditedProduct] = useState({ name: '', price: '', limit: '', productType: '' });
+
+  const handleEditClick = (product) => {
+    setEditingProductId(product._id);
+    setEditedProduct({ ...product }); // Prefill the fields with the product data
+  };
+  
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setEditedProduct((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleCancelEdit = () => {
+    setEditingProductId(null);
+    setEditedProduct({ name: '', price: '', limit: '', productType: '' });
+  };
+
+  const handleSaveEdit = () => {
+    handleEditSubmit(editedProduct); // Call a function to handle the updated product data
+    setEditingProductId(null); // Exit edit mode
+  };
+  //Edit product Ends
+  const handleEditSubmit = (updatedProduct) => {
+    axios
+      .put(`api/products/update/${updatedProduct._id}`, updatedProduct)
+      .then(() => {
+        setRefreshProducts(!refreshProducts); // Refresh the product list
+      })
+      .catch((error) => {
+        console.error('Error updating product:', error);
+      });
+  };
+  
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -114,7 +166,7 @@ const AppReport = () => {
         })
         .finally(() => setLoading(false));
     }
-  }, [selectedApp]);
+  }, [selectedApp, refreshProducts]);
 
   const handleAppChange = (event) => {
     setSelectedApp(event.target.value);
@@ -129,6 +181,9 @@ const AppReport = () => {
   if (apps.length === 0) {
     return <div>No apps available. Please create an app first.</div>;
   }
+
+
+
 
   return (
     <StyledContainer>
@@ -199,12 +254,70 @@ const AppReport = () => {
           {products.map((product, index) => (
             <Grid item xs={12} sm={6} key={index}>
               <ProductCard>
+                
                 <CardContent>
-                <Typography variant="h6">{product._id}</Typography>
+                <div className="CloseIconWrapper">
+                <EditIcon onClick={() => handleEditClick(product)} />
+                  <CloseIcon onClick={() => handleDelete(product._id)} />
+                </div>
+                {editingProductId === product._id ? (
+                // Render input fields if the product is in edit mode
+                <div>
+                  <TextField
+                    label="Name"
+                    name="name"
+                    value={editedProduct.name}
+                    onChange={handleInputChange}
+                    fullWidth
+                    margin="normal"
+                  />
+                  <TextField
+                    label="Price"
+                    name="price"
+                    value={editedProduct.price}
+                    onChange={handleInputChange}
+                    fullWidth
+                    margin="normal"
+                  />
+                  <TextField
+                    label="Limit"
+                    name="limit"
+                    value={editedProduct.limit}
+                    onChange={handleInputChange}
+                    fullWidth
+                    margin="normal"
+                  />
+                  <div>
+                  <InputLabel id="product-type-label">Product Type</InputLabel>
+                  <Select
+                    label="Type"
+                    name="productType"
+                    value={editedProduct.productType}
+                    onChange={handleInputChange}
+                    fullWidth
+                    margin="normal"
+                  >
+                    <MenuItem value="monthly">Monthly</MenuItem>
+                    <MenuItem value="yearly">Yearly</MenuItem>
+                    <MenuItem value="pay-as-you-go">Pay As You Go</MenuItem>
+                  </Select>
+                  </div>
+                  <Button onClick={handleSaveEdit} color="primary" variant="contained" style={{ marginRight: '10px' }}>
+                    Save
+                  </Button>
+                  <Button onClick={handleCancelEdit} color="secondary" variant="outlined">
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                // Render product details if not in edit mode
+                <div>
                   <Typography variant="h6">{product.name}</Typography>
                   <Typography variant="body2">Price: ${product.price}</Typography>
                   <Typography variant="body2">Limit: {product.limit} API calls</Typography>
                   <Typography variant="body2">Type: {product.productType}</Typography>
+                </div>
+              )}
                 </CardContent>
               </ProductCard>
             </Grid>

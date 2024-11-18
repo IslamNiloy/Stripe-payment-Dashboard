@@ -1,6 +1,7 @@
 // app.js
 const express = require('express');
 const mongoose = require('mongoose');
+const cors = require('cors'); 
 require('dotenv').config();
 
 const productRoutes = require('./routes/productRoutes');
@@ -13,7 +14,7 @@ const userRoutes = require('./routes/userRoutes')
 const appRoutes = require('./routes/appRoutes')
 
 const app = express();
-
+app.use(cors()); 
 // Middleware
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' })); 
 app.use(express.json());
